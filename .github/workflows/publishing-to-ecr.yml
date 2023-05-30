@@ -1,0 +1,74 @@
+name: Publicação para ECR
+
+on:
+  workflow_call:
+    inputs:
+      DOCKER_FILE:
+        required: true
+        type: string
+      PATH_PROJECT:
+        required: true
+        type: string
+      CONFIG_FILE:
+        required: true
+        type: string
+    secrets:
+      AWS_ACCESS_KEY_ID:
+          required: true
+      AWS_REGION:
+          required: true
+      AWS_SECRET_ACCESS_KEY:
+          required: true
+      DOTNET_VERSION:
+          required: true
+      ECR_IMAGE:
+          required: true
+
+jobs:
+  build:
+    name: Compilação do projeto
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+    - name: Configurando dotnet
+      uses: actions/setup-dotnet@v3
+      with:
+        dotnet-version: ${{ secrets.DOTNET_VERSION }}
+
+    - name: Compilando
+      run: dotnet build ${{ inputs.PATH_PROJECT }} /p:Configuration="Release" --configfile ${{ inputs.CONFIG_FILE }}
+
+  push_to_ecr:
+    name: Criação da imagem no ECR
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v3
+
+      - name: Configurando as credenciais na AWS
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Login no Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Recuperando data atual
+        id: date
+        run: echo "::set-output name=date::$(date +'%Y%m%d%H%M%S')"
+
+      - name: Backup da imagem anterior
+        run: |
+          docker pull ${{ secrets.ECR_IMAGE }}
+          docker image tag ${{ secrets.ECR_IMAGE }} ${{ secrets.ECR_IMAGE }}_${{ steps.date.outputs.date }}
+          docker push ${{ secrets.ECR_IMAGE }}_${{ steps.date.outputs.date }}
+
+      - name: Enviando para AWS ECR
+        run: |
+          docker build -t ${{ secrets.ECR_IMAGE }} -f ${{ inputs.DOCKER_FILE }} .
+          docker push ${{ secrets.ECR_IMAGE }}
