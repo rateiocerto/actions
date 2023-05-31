@@ -1,0 +1,70 @@
+name: Publicação do frontend
+
+on:
+  workflow_call:
+    inputs:
+        WORKING_DIRECTORY:
+            required: true
+            type: string
+        SOURCE_DIR:
+            required: true
+            type: string
+        COMMAND_BUILD:
+            required: true
+            type: string
+    secrets:
+        AWS_REGION:
+            required: true
+        AWS_ACCESS_KEY_ID:
+            required: true
+        AWS_SECRET_ACCESS_KEY:
+            required: true
+        AWS_S3_BUCKET:
+            required: true
+        AWS_DISTRIBUTION_ID:
+            required: true
+
+jobs:
+  build:
+    name: Processo de deploy do frontend
+    runs-on: ubuntu-latest
+    defaults:
+        run:
+          working-directory: ${{ inputs.WORKING_DIRECTORY }}
+
+    strategy:
+      matrix:
+        node-version: [14.x, 16.x]
+
+    steps:
+      - uses: actions/checkout@v3
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+          cache-dependency-path: ${{ inputs.WORKING_DIRECTORY }}/package-lock.json
+      - run: npm ci -f
+      - run: npm run build --if-present
+
+      - name: Compilação do projeto
+        run: ${{ inputs.COMMAND_BUILD }}
+
+      - name: Cópia da distribuição para o bucket
+        uses: jakejarvis/s3-sync-action@v0.5.1
+        with:
+          args: --acl public-read --delete
+        env:
+          AWS_S3_BUCKET: ${{ secrets.AWS_S3_BUCKET }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          SOURCE_DIR: ${{ inputs.SOURCE_DIR }}
+
+      - name: Criação de invalidação dentro do CloudFront
+        uses: awact/cloudfront-action@master
+        env:
+          SOURCE_PATH: '/*'
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          DISTRIBUTION_ID: ${{ secrets.AWS_DISTRIBUTION_ID }}
