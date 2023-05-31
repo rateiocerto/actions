@@ -91,9 +91,8 @@ jobs:
           username: ${{ secrets.AWS_SERVER_USER }}
           key: ${{ secrets.AWS_SSH_KEY }}
           script: |
-            sudo su
             cd compose
-            aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 539286694264.dkr.ecr.us-east-1.amazonaws.com
-            docker-compose -f docker-compose.yml down
-            docker rmi $(docker images -a -q)
-            docker-compose -f docker-compose.yml up -d
+            sudo aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 539286694264.dkr.ecr.us-east-1.amazonaws.com
+            sudo docker-compose -f docker-compose.yml down
+            sudo docker rmi $(docker images -a -q)
+            sudo docker-compose -f docker-compose.yml up -d
