@@ -26,7 +26,7 @@ on:
 
 jobs:
   build:
-    name: Processo de deploy do frontend
+    name: Deploy do frontend
     runs-on: ubuntu-latest
     defaults:
         run:
